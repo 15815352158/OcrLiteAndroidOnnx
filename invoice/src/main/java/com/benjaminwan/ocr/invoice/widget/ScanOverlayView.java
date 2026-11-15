@@ -32,6 +32,7 @@ public class ScanOverlayView extends View {
     private float cornerRadius;
     private float scanLineWidth;
     private volatile boolean animating;
+    private boolean rectValid;
 
     public ScanOverlayView(Context context) {
         this(context, null);
@@ -62,6 +63,18 @@ public class ScanOverlayView extends View {
         postInvalidateOnAnimation();
     }
 
+    /**
+     * 取景矩形框在本视图坐标系中的位置。
+     * 尚未完成首次绘制时返回 false。
+     */
+    public boolean getScanRect(RectF out) {
+        if (!rectValid) {
+            return false;
+        }
+        out.set(frameRect);
+        return true;
+    }
+
     public void stopAnimation() {
         animating = false;
         invalidate();
@@ -81,6 +94,7 @@ public class ScanOverlayView extends View {
         float cx = w / 2f;
         float cy = h * 0.45f;
         frameRect.set(cx - rectW / 2, cy - rectH / 2, cx + rectW / 2, cy + rectH / 2);
+        rectValid = true;
 
         // 框外区域压暗，突出取景框
         outsidePath.reset();
