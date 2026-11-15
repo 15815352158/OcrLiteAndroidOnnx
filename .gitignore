@@ -1,5 +1,6 @@
 # Built application files
 #*.apk
+build_log.txt
 *.ap_
 *.aab
 
