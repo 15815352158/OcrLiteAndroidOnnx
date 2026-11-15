@@ -22,3 +22,4 @@ rootProject.name = "OcrLiteAndroidOnnx"
 include ':app'
 include ':OcrLibrary'
 include ':appjava'
+include ':invoice'

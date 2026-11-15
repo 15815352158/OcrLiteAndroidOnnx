@@ -1,0 +1,52 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.benjaminwan.ocr.invoice'
+    compileSdk compile_sdk_version
+
+    defaultConfig {
+        applicationId "com.benjaminwan.ocr.invoice"
+        minSdk min_sdk_version
+        targetSdk target_sdk_version
+        versionCode project_version_code
+        versionName project_version_name
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    viewBinding {
+        enabled = true
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    //Android
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.8.0'
+    //glide
+    implementation 'com.github.bumptech.glide:glide:4.13.2'
+
+    // CameraX 摄像头扫描
+    def camerax_version = '1.2.1'
+    implementation "androidx.camera:camera-core:$camerax_version"
+    implementation "androidx.camera:camera-camera2:$camerax_version"
+    implementation "androidx.camera:camera-lifecycle:$camerax_version"
+    implementation "androidx.camera:camera-view:$camerax_version"
+
+    implementation project(":OcrLibrary")
+}
