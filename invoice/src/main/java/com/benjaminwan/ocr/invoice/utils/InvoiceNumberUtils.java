@@ -24,6 +24,8 @@ public class InvoiceNumberUtils {
 
     /** 恰好 20 位、且前后不紧邻其它数字 */
     private static final Pattern RUN_20 = Pattern.compile("(?<!\\d)\\d{20}(?!\\d)");
+    /** 恰好 12 位（发票代码）、且前后不紧邻其它数字 */
+    private static final Pattern RUN_12 = Pattern.compile("(?<!\\d)\\d{12}(?!\\d)");
     /** 恰好 8 位、且前后不紧邻其它数字 */
     private static final Pattern RUN_8 = Pattern.compile("(?<!\\d)\\d{8}(?!\\d)");
 
@@ -74,31 +76,56 @@ public class InvoiceNumberUtils {
         }
     }
 
+    /** 关键字"发票号码"后紧跟的数字值（20位或8位），允许中间有冒号等少量非数字 */
+    private static final Pattern KEY_NUMBER =
+            Pattern.compile("发票号码(?!代码)[^\\d]{0,6}(\\d{20}|\\d{8})(?!\\d)");
+    /** 关键字"发票代码"后紧跟的 12 位数字值 */
+    private static final Pattern KEY_CODE =
+            Pattern.compile("发票代码[^\\d]{0,6}(\\d{12})(?!\\d)");
+
     /**
-     * 从发票二维码内容中解析发票号码。
-     * 增值税发票二维码为标准逗号分隔格式：发票代码,发票号码,金额,开票日期,校验码,,,
-     * 数电发票二维码内容中包含 20 位号码。
-     * 解析优先级：20位号码 > 第2个字段的8位号码 > 任意字段中的8位纯数字。
+     * 从发票二维码内容中解析发票号码（按关键字提取）：
+     * 1. 找"发票号码"关键字后面的数字：20 位（数电票）直接返回，不需要发票代码；
+     * 2. 8 位号码：同时找到"发票代码"的 12 位数字则拼接为 20 位返回，否则只返回 8 位；
+     * 3. "校验码"后的数字不匹配任何关键字，天然被排除；
+     * 4. 兜底：无关键字的逗号分隔格式，按字段位置取 20位 / 12+8位。
      */
     public static String parseQrContent(String content) {
         if (content == null || content.isEmpty()) {
             return null;
         }
-        Matcher m20 = RUN_20.matcher(content);
-        if (m20.find()) {
-            return m20.group();
+        // 去掉所有空白：兼容标签与值分行、数字间带空格印刷
+        String flat = content.replaceAll("\\s+", "");
+
+        String number = null;
+        Matcher mn = KEY_NUMBER.matcher(flat);
+        if (mn.find()) {
+            number = mn.group(1);
         }
-        String[] fields = content.split(",");
-        if (fields.length > 1) {
-            String f = fields[1].trim();
-            if (f.matches("\\d{8}")) {
-                return f;
+        String code = null;
+        Matcher mc = KEY_CODE.matcher(flat);
+        if (mc.find()) {
+            code = mc.group(1);
+        }
+        if (number != null) {
+            if (number.length() == 20) {
+                return number; // 数电票：20位号码本身
             }
+            return code != null ? code + number : number;
         }
-        for (String field : fields) {
-            String f = field.trim();
-            if (f.matches("\\d{8}")) {
-                return f;
+        // 兜底：无关键字逗号/分号分隔格式（如 01,10,发票代码,发票号码,...,校验码）
+        String[] fields = flat.split("[,，;；]");
+        String codeF = null;
+        for (int i = 0; i < fields.length; i++) {
+            String f = fields[i].trim();
+            if (f.matches("\\d{20}")) {
+                return f; // 数电票号字段
+            }
+            if (codeF == null && f.matches("\\d{12}")) {
+                codeF = f;
+                if (i + 1 < fields.length && fields[i + 1].trim().matches("\\d{8}")) {
+                    return codeF + fields[i + 1].trim();
+                }
             }
         }
         return null;
