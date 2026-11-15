@@ -160,9 +160,11 @@ public class MainActivity extends AppCompatActivity {
     private String buildReport(OcrResult ocrResult) {
         List<String> numbers = InvoiceNumberUtils.extract(ocrResult);
 
-        // 第一个合法号码（20位优先）填入发票号码文本框，分组着色便于人工核对
+        // 第一个合法号码（20位优先）填入发票号码文本框，分组着色便于人工核对；
+        // 8位号码时自动拼接全文中的12/10位发票代码，长度与二维码扫描一致
         binding.invoiceNumberET.setText(
-                styleInvoiceNumber(numbers.isEmpty() ? "" : numbers.get(0)));
+                styleInvoiceNumber(InvoiceNumberUtils.concatCode(
+                        ocrResult, numbers.isEmpty() ? "" : numbers.get(0))));
 
         StringBuilder sb = new StringBuilder();
         sb.append("【发票号码】(8位或20位数字校验)\n");

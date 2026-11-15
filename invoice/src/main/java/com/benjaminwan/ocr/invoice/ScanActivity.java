@@ -233,7 +233,9 @@ public class ScanActivity extends AppCompatActivity {
         vibration();
 
         Intent data = new Intent();
-        data.putExtra("invoiceNumber", numbers.get(0));
+        // 8位号码时拼接全文中的12/10位发票代码，结果长度与二维码扫描一致（8/18/20位）
+        data.putExtra("invoiceNumber",
+                InvoiceNumberUtils.concatCode(result, numbers.get(0)));
         setResult(Activity.RESULT_OK, data);
         // 短暂停留展示结果后自动退出扫描页，返回主界面
         mainHandler.postDelayed(this::finish, 1200);

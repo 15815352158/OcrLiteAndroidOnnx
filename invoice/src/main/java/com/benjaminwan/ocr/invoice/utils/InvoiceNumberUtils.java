@@ -32,6 +32,31 @@ public class InvoiceNumberUtils {
         return num != null && (num.length() == 8 || num.length() == 20);
     }
 
+    /** 独立的 12 位 / 10 位数字串（发票代码） */
+    private static final Pattern CODE_12 = Pattern.compile("(?<!\\d)\\d{12}(?!\\d)");
+    private static final Pattern CODE_10 = Pattern.compile("(?<!\\d)\\d{10}(?!\\d)");
+
+    /**
+     * 当 OCR 提取到的发票号码为 8 位时，在 OCR 全文中查找连续的 12 位或 10 位发票代码，
+     * 找到则拼接为 20 位 / 18 位，使结果长度与二维码扫描解析保持一致；找不到则保持 8 位。
+     */
+    public static String concatCode(OcrResult result, String number) {
+        if (number == null || number.length() != 8 || result == null) {
+            return number;
+        }
+        String flat = result.getStrRes() == null
+                ? "" : result.getStrRes().replaceAll("\\s+", "");
+        Matcher m12 = CODE_12.matcher(flat);
+        if (m12.find()) {
+            return m12.group() + number;
+        }
+        Matcher m10 = CODE_10.matcher(flat);
+        if (m10.find()) {
+            return m10.group() + number;
+        }
+        return number;
+    }
+
     /**
      * 从 OCR 结果中提取所有合法发票号码，20 位优先排在列表前面。
      */
