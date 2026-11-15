@@ -187,8 +187,8 @@ public class QrScanActivity extends AppCompatActivity {
         binding.stopBtn.setEnabled(false);
         binding.scanOverlay.stopAnimation();
 
-        binding.statusTV.setText(number.length() == 20
-                ? "解析成功（数电发票号码）" : "解析成功（发票号码）");
+        binding.statusTV.setText(number.length() == 8
+                ? "解析成功（发票号码8位）" : "解析成功（发票代码+发票号码，共" + number.length() + "位）");
         binding.resultTV.setText("发票号码：" + number + "\n二维码内容：" + qrText);
 
         Intent data = new Intent();

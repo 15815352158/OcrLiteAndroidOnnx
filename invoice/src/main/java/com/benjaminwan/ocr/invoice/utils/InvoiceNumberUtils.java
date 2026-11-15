@@ -24,8 +24,6 @@ public class InvoiceNumberUtils {
 
     /** 恰好 20 位、且前后不紧邻其它数字 */
     private static final Pattern RUN_20 = Pattern.compile("(?<!\\d)\\d{20}(?!\\d)");
-    /** 恰好 12 位（发票代码）、且前后不紧邻其它数字 */
-    private static final Pattern RUN_12 = Pattern.compile("(?<!\\d)\\d{12}(?!\\d)");
     /** 恰好 8 位、且前后不紧邻其它数字 */
     private static final Pattern RUN_8 = Pattern.compile("(?<!\\d)\\d{8}(?!\\d)");
 
@@ -79,16 +77,17 @@ public class InvoiceNumberUtils {
     /** 关键字"发票号码"后紧跟的数字值（20位或8位），允许中间有冒号等少量非数字 */
     private static final Pattern KEY_NUMBER =
             Pattern.compile("发票号码(?!代码)[^\\d]{0,6}(\\d{20}|\\d{8})(?!\\d)");
-    /** 关键字"发票代码"后紧跟的 12 位数字值 */
+    /** 关键字"发票代码"后紧跟的数字值（12位或10位） */
     private static final Pattern KEY_CODE =
-            Pattern.compile("发票代码[^\\d]{0,6}(\\d{12})(?!\\d)");
+            Pattern.compile("发票代码[^\\d]{0,6}(\\d{12}|\\d{10})(?!\\d)");
 
     /**
      * 从发票二维码内容中解析发票号码（按关键字提取）：
      * 1. 找"发票号码"关键字后面的数字：20 位（数电票）直接返回，不需要发票代码；
-     * 2. 8 位号码：同时找到"发票代码"的 12 位数字则拼接为 20 位返回，否则只返回 8 位；
+     * 2. 8 位号码：发票代码可能是 12 位、10 位或没有，
+     *    拼接结果相应为 20 位 / 18 位 / 8 位；
      * 3. "校验码"后的数字不匹配任何关键字，天然被排除；
-     * 4. 兜底：无关键字的逗号分隔格式，按字段位置取 20位 / 12+8位。
+     * 4. 兜底：无关键字的逗号分隔格式，按字段位置取 20位 / 12或10+8位。
      */
     public static String parseQrContent(String content) {
         if (content == null || content.isEmpty()) {
@@ -121,7 +120,7 @@ public class InvoiceNumberUtils {
             if (f.matches("\\d{20}")) {
                 return f; // 数电票号字段
             }
-            if (codeF == null && f.matches("\\d{12}")) {
+            if (codeF == null && f.matches("\\d{12}|\\d{10}")) {
                 codeF = f;
                 if (i + 1 < fields.length && fields[i + 1].trim().matches("\\d{8}")) {
                     return codeF + fields[i + 1].trim();
