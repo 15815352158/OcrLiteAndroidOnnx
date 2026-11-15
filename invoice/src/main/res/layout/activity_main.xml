@@ -71,30 +71,42 @@
         android:orientation="horizontal"
         android:paddingTop="8dp">
 
-        <Button
+        <ImageButton
             android:id="@+id/selectBtn"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="56dp"
             android:layout_weight="1"
-            android:textSize="13sp"
-            android:text="选择发票图片" />
+            android:background="?attr/colorPrimary"
+            android:contentDescription="选择发票图片"
+            android:scaleType="fitCenter"
+            android:padding="14dp"
+            android:src="@drawable/ic_gallery"
+            android:tooltipText="选择发票图片" />
 
-        <Button
+        <ImageButton
             android:id="@+id/scanBtn"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="56dp"
             android:layout_weight="1"
             android:layout_marginStart="8dp"
-            android:textSize="13sp"
-            android:text="摄像头扫描" />
+            android:background="?attr/colorPrimary"
+            android:contentDescription="摄像头扫描"
+            android:scaleType="fitCenter"
+            android:padding="14dp"
+            android:src="@drawable/ic_camera"
+            android:tooltipText="摄像头扫描" />
 
-        <Button
+        <ImageButton
             android:id="@+id/qrScanBtn"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="56dp"
             android:layout_weight="1"
             android:layout_marginStart="8dp"
-            android:textSize="13sp"
-            android:text="二维码扫描" />
+            android:background="?attr/colorPrimary"
+            android:contentDescription="二维码扫描"
+            android:scaleType="fitCenter"
+            android:padding="14dp"
+            android:src="@drawable/ic_qr_code"
+            android:tooltipText="二维码扫描" />
     </LinearLayout>
 </LinearLayout>
