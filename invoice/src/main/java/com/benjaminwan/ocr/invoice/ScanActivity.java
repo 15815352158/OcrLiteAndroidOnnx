@@ -235,6 +235,8 @@ public class ScanActivity extends AppCompatActivity {
         Intent data = new Intent();
         data.putExtra("invoiceNumber", numbers.get(0));
         setResult(Activity.RESULT_OK, data);
+        // 短暂停留展示结果后自动退出扫描页，返回主界面
+        mainHandler.postDelayed(this::finish, 1200);
     }
 
     private void vibration() {

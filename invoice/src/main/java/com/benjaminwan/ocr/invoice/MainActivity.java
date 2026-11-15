@@ -59,7 +59,6 @@ public class MainActivity extends AppCompatActivity {
         ocrEngine.setDoAngle(true); // 相册照片方向不定，启用文字方向检测
 
         binding.selectBtn.setOnClickListener(v -> openSelector());
-        binding.detectBtn.setOnClickListener(v -> detectInvoice());
         binding.scanBtn.setOnClickListener(v ->
                 startActivityForResult(new Intent(this, ScanActivity.class), REQUEST_SCAN));
     }
@@ -91,7 +90,9 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
             binding.timeTV.setText("");
-            binding.resultTV.setText("图片已就绪，点击\"识别发票号码\"开始识别");
+            binding.resultTV.setText("图片已就绪，开始自动识别...");
+            // 选择图片后自动识别，无需手动点击按钮
+            detectInvoice();
         }
     }
 
@@ -101,7 +102,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         binding.selectBtn.setEnabled(false);
-        binding.detectBtn.setEnabled(false);
         binding.scanBtn.setEnabled(false);
         binding.resultTV.setText("识别中，请稍候...");
 
@@ -120,7 +120,6 @@ public class MainActivity extends AppCompatActivity {
             final String err = error;
             mainHandler.post(() -> {
                 binding.selectBtn.setEnabled(true);
-                binding.detectBtn.setEnabled(true);
                 binding.scanBtn.setEnabled(true);
                 if (ocrResult == null) {
                     binding.resultTV.setText("识别失败: " + err);
