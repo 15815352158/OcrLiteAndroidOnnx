@@ -7,6 +7,9 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.Spannable;
+import android.text.SpannableStringBuilder;
+import android.text.style.ForegroundColorSpan;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -37,6 +40,15 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int REQUEST_SELECT_IMAGE = 100;
     private static final int REQUEST_SCAN = 101;
+
+    /** 发票号码分组着色：每 4 个字符一组，按 红、蓝、绿、黄、黑 循环 */
+    private static final int[] GROUP_COLORS = {
+            0xFFE53935, // 红
+            0xFF1E88E5, // 蓝
+            0xFF43A047, // 绿
+            0xFFF9A825, // 黄
+            0xFF000000  // 黑
+    };
 
     private ActivityMainBinding binding;
     private OcrEngine ocrEngine;
@@ -75,7 +87,7 @@ public class MainActivity extends AppCompatActivity {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_SCAN && resultCode == Activity.RESULT_OK && data != null) {
             String number = data.getStringExtra("invoiceNumber");
-            binding.invoiceNumberET.setText(number);
+            binding.invoiceNumberET.setText(styleInvoiceNumber(number));
             binding.resultTV.setText("摄像头扫描结果：\n  " + number);
             return;
         }
@@ -141,8 +153,9 @@ public class MainActivity extends AppCompatActivity {
     private String buildReport(OcrResult ocrResult) {
         List<String> numbers = InvoiceNumberUtils.extract(ocrResult);
 
-        // 第一个合法号码填入发票号码文本框
-        binding.invoiceNumberET.setText(numbers.isEmpty() ? "" : numbers.get(0));
+        // 第一个合法号码（20位优先）填入发票号码文本框，分组着色便于人工核对
+        binding.invoiceNumberET.setText(
+                styleInvoiceNumber(numbers.isEmpty() ? "" : numbers.get(0)));
 
         StringBuilder sb = new StringBuilder();
         sb.append("【发票号码】(8位或20位数字校验)\n");
@@ -157,6 +170,23 @@ public class MainActivity extends AppCompatActivity {
         }
         sb.append("\n【OCR全文】\n").append(ocrResult.getStrRes().trim());
         return sb.toString();
+    }
+
+    /**
+     * 发票号码分组着色：每 4 个字符一组循环使用 红/蓝/绿/黄/黑，
+     * 例如 20 位号码：前4红、5-8蓝、9-12绿、13-16黄、17-20黑。
+     */
+    private CharSequence styleInvoiceNumber(String num) {
+        if (num == null || num.isEmpty()) {
+            return "";
+        }
+        SpannableStringBuilder sb = new SpannableStringBuilder(num);
+        for (int i = 0; i < num.length(); i += 4) {
+            int color = GROUP_COLORS[(i / 4) % GROUP_COLORS.length];
+            int end = Math.min(i + 4, num.length());
+            sb.setSpan(new ForegroundColorSpan(color), i, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        return sb;
     }
 
     @Override
