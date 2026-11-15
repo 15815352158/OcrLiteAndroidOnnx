@@ -73,4 +73,34 @@ public class InvoiceNumberUtils {
             nums8.add(m8.group());
         }
     }
+
+    /**
+     * 从发票二维码内容中解析发票号码。
+     * 增值税发票二维码为标准逗号分隔格式：发票代码,发票号码,金额,开票日期,校验码,,,
+     * 数电发票二维码内容中包含 20 位号码。
+     * 解析优先级：20位号码 > 第2个字段的8位号码 > 任意字段中的8位纯数字。
+     */
+    public static String parseQrContent(String content) {
+        if (content == null || content.isEmpty()) {
+            return null;
+        }
+        Matcher m20 = RUN_20.matcher(content);
+        if (m20.find()) {
+            return m20.group();
+        }
+        String[] fields = content.split(",");
+        if (fields.length > 1) {
+            String f = fields[1].trim();
+            if (f.matches("\\d{8}")) {
+                return f;
+            }
+        }
+        for (String field : fields) {
+            String f = field.trim();
+            if (f.matches("\\d{8}")) {
+                return f;
+            }
+        }
+        return null;
+    }
 }

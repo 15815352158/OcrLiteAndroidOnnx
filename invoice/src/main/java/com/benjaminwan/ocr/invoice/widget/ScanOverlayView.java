@@ -33,6 +33,7 @@ public class ScanOverlayView extends View {
     private float scanLineWidth;
     private volatile boolean animating;
     private boolean rectValid;
+    private boolean squareMode;
 
     public ScanOverlayView(Context context) {
         this(context, null);
@@ -63,6 +64,12 @@ public class ScanOverlayView extends View {
         postInvalidateOnAnimation();
     }
 
+    /** true=正方形取景框（二维码），false=横向长方形（发票号码条带） */
+    public void setSquareMode(boolean square) {
+        this.squareMode = square;
+        invalidate();
+    }
+
     /**
      * 取景矩形框在本视图坐标系中的位置。
      * 尚未完成首次绘制时返回 false。
@@ -88,9 +95,16 @@ public class ScanOverlayView extends View {
         if (w == 0 || h == 0) {
             return;
         }
-        // 中央长方形取景框：宽 84%，高 22%，垂直居中偏上
-        float rectW = w * 0.84f;
-        float rectH = h * 0.22f;
+        // 取景框：横向长方形（号码条带）或正方形（二维码）
+        float rectW;
+        float rectH;
+        if (squareMode) {
+            rectW = Math.min(w, h) * 0.62f;
+            rectH = rectW;
+        } else {
+            rectW = w * 0.84f;
+            rectH = h * 0.22f;
+        }
         float cx = w / 2f;
         float cy = h * 0.45f;
         frameRect.set(cx - rectW / 2, cy - rectH / 2, cx + rectW / 2, cy + rectH / 2);

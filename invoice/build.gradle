@@ -48,5 +48,8 @@ dependencies {
     implementation "androidx.camera:camera-lifecycle:$camerax_version"
     implementation "androidx.camera:camera-view:$camerax_version"
 
+    // ZXing 二维码解码（纯Java，不依赖Google Play服务）
+    implementation 'com.google.zxing:core:3.5.2'
+
     implementation project(":OcrLibrary")
 }

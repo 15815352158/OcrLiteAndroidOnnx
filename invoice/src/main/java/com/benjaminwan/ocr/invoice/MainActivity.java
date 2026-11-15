@@ -40,6 +40,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int REQUEST_SELECT_IMAGE = 100;
     private static final int REQUEST_SCAN = 101;
+    private static final int REQUEST_QR_SCAN = 102;
 
     /** 发票号码分组着色：每 4 个字符一组，按 红、蓝、绿、黄、黑 循环 */
     private static final int[] GROUP_COLORS = {
@@ -73,6 +74,8 @@ public class MainActivity extends AppCompatActivity {
         binding.selectBtn.setOnClickListener(v -> openSelector());
         binding.scanBtn.setOnClickListener(v ->
                 startActivityForResult(new Intent(this, ScanActivity.class), REQUEST_SCAN));
+        binding.qrScanBtn.setOnClickListener(v ->
+                startActivityForResult(new Intent(this, QrScanActivity.class), REQUEST_QR_SCAN));
     }
 
     private void openSelector() {
@@ -85,10 +88,12 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_SCAN && resultCode == Activity.RESULT_OK && data != null) {
+        if ((requestCode == REQUEST_SCAN || requestCode == REQUEST_QR_SCAN)
+                && resultCode == Activity.RESULT_OK && data != null) {
             String number = data.getStringExtra("invoiceNumber");
             binding.invoiceNumberET.setText(styleInvoiceNumber(number));
-            binding.resultTV.setText("摄像头扫描结果：\n  " + number);
+            binding.resultTV.setText((requestCode == REQUEST_QR_SCAN ? "二维码扫描" : "摄像头扫描")
+                    + "结果：\n  " + number);
             return;
         }
         if (requestCode == REQUEST_SELECT_IMAGE && resultCode == Activity.RESULT_OK
@@ -115,6 +120,7 @@ public class MainActivity extends AppCompatActivity {
         }
         binding.selectBtn.setEnabled(false);
         binding.scanBtn.setEnabled(false);
+        binding.qrScanBtn.setEnabled(false);
         binding.resultTV.setText("识别中，请稍候...");
 
         final Bitmap img = selectedImg;
@@ -133,6 +139,7 @@ public class MainActivity extends AppCompatActivity {
             mainHandler.post(() -> {
                 binding.selectBtn.setEnabled(true);
                 binding.scanBtn.setEnabled(true);
+                binding.qrScanBtn.setEnabled(true);
                 if (ocrResult == null) {
                     binding.resultTV.setText("识别失败: " + err);
                     return;
