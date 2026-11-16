@@ -1,6 +1,7 @@
 #include "CrnnNet.h"
 #include "OcrUtils.h"
 #include <numeric>
+#include <algorithm>
 
 CrnnNet::CrnnNet() {}
 
@@ -86,11 +87,12 @@ bool CrnnNet::initModel(AAssetManager *mgr) {
     return true;
 }
 
-TextLine CrnnNet::scoreToTextLine(const float *srcData, int h, int w) {
-    std::string strRes;
+TextLine CrnnNet::scoreToTextLine(const float *srcData, int h, int w, const cv::Mat &srcResize) {
     int lastIndex = 0;
     int keySize = keys.size();
     std::vector<float> scores;
+    // 收集有效字符及其 CTC 时间步（时间步近似对应字符在图片中的水平位置）
+    std::vector<std::pair<std::string, int>> charSeq;
     for (int i = 0; i < h; i++) {
         int maxIndex = 0;
         float maxValue = -1000.f;
@@ -118,9 +120,78 @@ TextLine CrnnNet::scoreToTextLine(const float *srcData, int h, int w) {
         }*/
         if (maxIndex > 0 && maxIndex < keySize && (!(i > 0 && maxIndex == lastIndex))) {
             scores.emplace_back(maxValue);
-            strRes.append(keys[maxIndex - 1]);
+            charSeq.emplace_back(keys[maxIndex - 1], i);
         }
         lastIndex = maxIndex;
+    }
+    std::string strRes;
+    if (charSeq.size() <= 1) {
+        if (!charSeq.empty()) {
+            strRes = charSeq[0].first;
+        }
+        return {strRes, scores};
+    }
+    // 识别字典几乎不含空格，字间空白在 CTC 输出里会丢失，需按行图像列空白还原。
+    // 校验码等数字串按"5位一组、组间宽空格"印刷：组内间隙小且均匀、组间间隙大。
+    // 判定规则：边界空白需同时大于 [行内空白中位数的2倍] 与 [平均字距的25%]，
+    // 只在组间插入空格，避免把组内数字逐位拆散。
+    cv::Mat gray;
+    if (srcResize.channels() == 3) {
+        cv::cvtColor(srcResize, gray, cv::COLOR_BGR2GRAY);
+    } else {
+        gray = srcResize;
+    }
+    cv::Mat bw;
+    cv::threshold(gray, bw, 0, 255, cv::THRESH_BINARY_INV | cv::THRESH_OTSU);
+    int W = srcResize.cols;
+    std::vector<int> ink(W, 0);
+    for (int x = 0; x < W; x++) {
+        int s = 0;
+        for (int y = 0; y < bw.rows; y++) {
+            if (bw.at<uchar>(y, x) > 0) {
+                s++;
+            }
+        }
+        ink[x] = s;
+    }
+    size_t n = charSeq.size();
+    float pitch = (float) W / (float) n;
+    // 统计每个字符边界中点附近窗口内的最大连续空白列宽
+    std::vector<int> blanks(n - 1);
+    for (size_t k = 1; k < n; k++) {
+        int center = (int) (((float) (charSeq[k].second + charSeq[k - 1].second) / 2.0f /
+                             (float) h) * W);
+        int x0 = std::max(0, center - (int) (pitch * 0.8f));
+        int x1 = std::min(W - 1, center + (int) (pitch * 0.8f));
+        int best = 0, cur = 0;
+        for (int x = x0; x <= x1; x++) {
+            if (ink[x] == 0) {
+                cur++;
+                if (cur > best) {
+                    best = cur;
+                }
+            } else {
+                cur = 0;
+            }
+        }
+        blanks[k - 1] = best;
+    }
+    std::vector<int> sortedBlanks(blanks);
+    std::sort(sortedBlanks.begin(), sortedBlanks.end());
+    int medBlank = sortedBlanks[sortedBlanks.size() / 2];
+    int spaceThresh = std::max(medBlank * 2, (int) (pitch * 0.25f));
+    strRes.append(charSeq[0].first);
+    int spaceCount = 0;
+    for (size_t k = 1; k < n; k++) {
+        if (blanks[k - 1] > spaceThresh) {
+            strRes.append(" ");
+            spaceCount++;
+        }
+        strRes.append(charSeq[k].first);
+    }
+    if (spaceCount > 0) {
+        LOGI("restore %d space(s), pitch(%.1f), medBlank(%d), thresh(%d), text(%s)",
+             spaceCount, pitch, medBlank, spaceThresh, strRes.c_str());
     }
     return {strRes, scores};
 }
@@ -157,7 +228,7 @@ TextLine CrnnNet::getTextLine(cv::Mat &src) {
     cv::Mat score(rows, crnnCols, CV_32FC1);
     memcpy(score.data, floatArray, rows * crnnCols * sizeof(float));
 
-    return scoreToTextLine((float *) score.data, rows, crnnCols);
+    return scoreToTextLine((float *) score.data, rows, crnnCols, srcResize);
 }
 
 std::vector<TextLine> CrnnNet::getTextLines(std::vector<cv::Mat> &partImg) {

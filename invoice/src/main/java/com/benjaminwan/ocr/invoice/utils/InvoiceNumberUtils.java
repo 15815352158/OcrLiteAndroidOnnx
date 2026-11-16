@@ -44,8 +44,8 @@ public class InvoiceNumberUtils {
         if (number == null || number.length() != 8 || result == null) {
             return number;
         }
-        String flat = result.getStrRes() == null
-                ? "" : result.getStrRes().replaceAll("\\s+", "");
+        // 只查原文：代码数字串内部含空格/非数字即不算连续，直接排除
+        String flat = result.getStrRes() == null ? "" : result.getStrRes();
         Matcher m12 = CODE_12.matcher(flat);
         if (m12.find()) {
             return m12.group() + number;
@@ -82,10 +82,16 @@ public class InvoiceNumberUtils {
         if (text == null || text.isEmpty()) {
             return;
         }
-        // 原文：避免去空格后把两个相邻号码粘成一个长数字串
-        matchInto(text, nums20, nums8);
-        // 去空格：兼容数字之间被印出空格的情况
-        matchInto(text.replaceAll("[\\s,，.。:：]", ""), nums20, nums8);
+        // 按行过滤：含"校验码"的行整行跳过（票面校验码是20位数字，会被误当成数电发票号码）
+        for (String line : text.split("\\r?\\n")) {
+            // 模糊匹配"校X码"，兼容 OCR 误识别（校脸码/校检码等）；先压缩空格
+            String compact = line.replace(" ", "");
+            if (compact.matches(".*校.{0,1}码.*") || compact.contains("校验码")) {
+                continue;
+            }
+            // 只按原文匹配：数字之间有空格或非数字字符即视为不连续，直接排除，不做删除/粘合处理
+            matchInto(line, nums20, nums8);
+        }
     }
 
     private static void matchInto(String text, Set<String> nums20, Set<String> nums8) {
