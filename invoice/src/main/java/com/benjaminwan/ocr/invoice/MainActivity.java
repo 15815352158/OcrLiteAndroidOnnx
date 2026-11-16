@@ -91,9 +91,10 @@ public class MainActivity extends AppCompatActivity {
         if ((requestCode == REQUEST_SCAN || requestCode == REQUEST_QR_SCAN)
                 && resultCode == Activity.RESULT_OK && data != null) {
             String number = data.getStringExtra("invoiceNumber");
+            String rawText = data.getStringExtra("rawText");
             binding.invoiceNumberET.setText(styleInvoiceNumber(number));
-            binding.resultTV.setText((requestCode == REQUEST_QR_SCAN ? "二维码扫描" : "摄像头扫描")
-                    + "结果：\n  " + number);
+            // 扫描结果栏显示原样内容（OCR全文/二维码原文），便于排查提取是否正确
+            binding.resultTV.setText(rawText == null ? "（无原始内容）" : rawText.trim());
             return;
         }
         if (requestCode == REQUEST_SELECT_IMAGE && resultCode == Activity.RESULT_OK
@@ -155,7 +156,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 按发票号码规则（8 位或 20 位、小矩形框过滤）提取候选，并附上全文供人工核对。
+     * 发票号码（提取结果，8位时自动拼接12/10位代码）填入文本框；
+     * 扫描结果栏只显示 OCR 原样全文，便于排查识别问题。
      */
     private String buildReport(OcrResult ocrResult) {
         List<String> numbers = InvoiceNumberUtils.extract(ocrResult);
@@ -166,19 +168,7 @@ public class MainActivity extends AppCompatActivity {
                 styleInvoiceNumber(InvoiceNumberUtils.concatCode(
                         ocrResult, numbers.isEmpty() ? "" : numbers.get(0))));
 
-        StringBuilder sb = new StringBuilder();
-        sb.append("【发票号码】(8位或20位数字校验)\n");
-        if (numbers.isEmpty()) {
-            sb.append("  未识别到合法发票号码\n");
-        } else {
-            for (String num : numbers) {
-                sb.append("  ").append(num)
-                        .append(num.length() == 20 ? "  (数电发票号码)" : "  (发票号码)")
-                        .append("\n");
-            }
-        }
-        sb.append("\n【OCR全文】\n").append(ocrResult.getStrRes().trim());
-        return sb.toString();
+        return ocrResult.getStrRes().trim();
     }
 
     /**

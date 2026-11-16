@@ -193,6 +193,8 @@ public class QrScanActivity extends AppCompatActivity {
 
         Intent data = new Intent();
         data.putExtra("invoiceNumber", number);
+        // 二维码原样内容回传主界面"扫描结果"栏，便于排查问题
+        data.putExtra("rawText", qrText);
         setResult(Activity.RESULT_OK, data);
         // 短暂停留展示结果后自动退出，返回主界面
         mainHandler.postDelayed(this::finish, 1500);
