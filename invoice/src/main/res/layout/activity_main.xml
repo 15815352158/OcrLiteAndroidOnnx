@@ -10,8 +10,7 @@
     <ImageView
         android:id="@+id/imageView"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="3"
+        android:layout_height="220dp"
         android:adjustViewBounds="true"
         android:scaleType="fitCenter" />
 
@@ -23,11 +22,23 @@
         android:textSize="12sp"
         tools:text="识别时间:123 ms" />
 
-    <ScrollView
+    <!-- 可折叠标题：点击展开/收起原始识别内容 -->
+    <TextView
+        android:id="@+id/resultHeaderTV"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="2"
-        android:background="#F5F5F5">
+        android:layout_height="wrap_content"
+        android:background="#EEEEEE"
+        android:padding="8dp"
+        android:text="扫描原始内容  ▼"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <ScrollView
+        android:id="@+id/resultScrollView"
+        android:layout_width="match_parent"
+        android:layout_height="140dp"
+        android:background="#F5F5F5"
+        android:visibility="gone">
 
         <TextView
             android:id="@+id/resultTV"
@@ -109,4 +120,10 @@
             android:src="@drawable/ic_qr_code"
             android:tooltipText="二维码扫描" />
     </LinearLayout>
+
+    <!-- 底部弹性占位：折叠原始内容时吸收多余空间，使上方组件保持上移 -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
 </LinearLayout>

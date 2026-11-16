@@ -76,6 +76,16 @@ public class MainActivity extends AppCompatActivity {
                 startActivityForResult(new Intent(this, ScanActivity.class), REQUEST_SCAN));
         binding.qrScanBtn.setOnClickListener(v ->
                 startActivityForResult(new Intent(this, QrScanActivity.class), REQUEST_QR_SCAN));
+
+        // 原始内容折叠区：默认收起，点击标题展开/收起，收起时下方组件自动上移
+        binding.resultHeaderTV.setOnClickListener(v -> {
+            boolean expand = binding.resultScrollView.getVisibility()
+                    != android.view.View.VISIBLE;
+            binding.resultScrollView.setVisibility(
+                    expand ? android.view.View.VISIBLE : android.view.View.GONE);
+            binding.resultHeaderTV.setText(
+                    expand ? "扫描原始内容  ▲" : "扫描原始内容  ▼");
+        });
     }
 
     private void openSelector() {
@@ -132,6 +142,22 @@ public class MainActivity extends AppCompatActivity {
 
         final Bitmap img = selectedImg;
         executor.execute(() -> {
+            // 优先按二维码逻辑：图中能解出二维码且解析出发票号码则直接返回
+            String qrText = decodeQrFromBitmap(img);
+            if (qrText != null) {
+                final String qrNumber = InvoiceNumberUtils.parseQrContent(qrText);
+                if (qrNumber != null && !qrNumber.isEmpty()) {
+                    mainHandler.post(() -> {
+                        setButtonsEnabled(true);
+                        binding.timeTV.setText("二维码识别（相册图片）");
+                        binding.invoiceNumberET.setText(styleInvoiceNumber(qrNumber));
+                        // 扫描结果栏显示二维码原始内容，便于排查
+                        binding.resultTV.setText(qrText.trim());
+                    });
+                    return;
+                }
+                // 解出二维码但提取不到号码，回退到 OCR 逻辑
+            }
             OcrResult result = null;
             String error = null;
             try {
@@ -144,9 +170,7 @@ public class MainActivity extends AppCompatActivity {
             final OcrResult ocrResult = result;
             final String err = error;
             mainHandler.post(() -> {
-                binding.selectBtn.setEnabled(true);
-                binding.scanBtn.setEnabled(true);
-                binding.qrScanBtn.setEnabled(true);
+                setButtonsEnabled(true);
                 if (ocrResult == null) {
                     binding.resultTV.setText("识别失败: " + err);
                     return;
@@ -159,6 +183,31 @@ public class MainActivity extends AppCompatActivity {
                 binding.resultTV.setText(buildReport(ocrResult));
             });
         });
+    }
+
+    private void setButtonsEnabled(boolean enabled) {
+        binding.selectBtn.setEnabled(enabled);
+        binding.scanBtn.setEnabled(enabled);
+        binding.qrScanBtn.setEnabled(enabled);
+    }
+
+    /** 用 ZXing 解码静态图片中的二维码，解不到返回 null */
+    private String decodeQrFromBitmap(Bitmap bmp) {
+        try {
+            int[] pixels = new int[bmp.getWidth() * bmp.getHeight()];
+            bmp.getPixels(pixels, 0, bmp.getWidth(), 0, 0, bmp.getWidth(), bmp.getHeight());
+            com.google.zxing.RGBLuminanceSource source =
+                    new com.google.zxing.RGBLuminanceSource(bmp.getWidth(), bmp.getHeight(), pixels);
+            com.google.zxing.BinaryBitmap bitmap =
+                    new com.google.zxing.BinaryBitmap(new com.google.zxing.common.HybridBinarizer(source));
+            java.util.Hashtable<com.google.zxing.DecodeHintType, Object> hints = new java.util.Hashtable<>();
+            hints.put(com.google.zxing.DecodeHintType.POSSIBLE_FORMATS,
+                    java.util.Collections.singletonList(com.google.zxing.BarcodeFormat.QR_CODE));
+            hints.put(com.google.zxing.DecodeHintType.TRY_HARDER, Boolean.TRUE);
+            return new com.google.zxing.MultiFormatReader().decode(bitmap, hints).getText();
+        } catch (Throwable t) {
+            return null;
+        }
     }
 
     /**
