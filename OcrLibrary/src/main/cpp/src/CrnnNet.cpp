@@ -179,10 +179,17 @@ TextLine CrnnNet::scoreToTextLine(const float *srcData, int h, int w, const cv::
     std::vector<int> sortedBlanks(blanks);
     std::sort(sortedBlanks.begin(), sortedBlanks.end());
     int medBlank = sortedBlanks[sortedBlanks.size() / 2];
-    int spaceThresh = std::max(medBlank * 2, (int) (pitch * 0.25f));
+    auto isDigitChar = [](const std::string &s) {
+        return s.size() == 1 && s[0] >= '0' && s[0] <= '9';
+    };
     strRes.append(charSeq[0].first);
     int spaceCount = 0;
     for (size_t k = 1; k < n; k++) {
+        // 两侧都是数字时提高阈值到 50% 字距：密集印刷的连续号码（组内间隙约15%）绝不拆断，
+        // 而"5位一组"的组间空格（约40-60%字距）仍能识别；非数字边界维持 25%
+        bool bothDigits = isDigitChar(charSeq[k - 1].first) && isDigitChar(charSeq[k].first);
+        int spaceThresh = std::max(medBlank * 2,
+                                   (int) (pitch * (bothDigits ? 0.5f : 0.25f)));
         if (blanks[k - 1] > spaceThresh) {
             strRes.append(" ");
             spaceCount++;
@@ -190,8 +197,8 @@ TextLine CrnnNet::scoreToTextLine(const float *srcData, int h, int w, const cv::
         strRes.append(charSeq[k].first);
     }
     if (spaceCount > 0) {
-        LOGI("restore %d space(s), pitch(%.1f), medBlank(%d), thresh(%d), text(%s)",
-             spaceCount, pitch, medBlank, spaceThresh, strRes.c_str());
+        LOGI("restore %d space(s), pitch(%.1f), medBlank(%d), text(%s)",
+             spaceCount, pitch, medBlank, strRes.c_str());
     }
     return {strRes, scores};
 }

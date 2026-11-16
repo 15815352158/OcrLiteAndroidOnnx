@@ -95,6 +95,12 @@ public class MainActivity extends AppCompatActivity {
             binding.invoiceNumberET.setText(styleInvoiceNumber(number));
             // 扫描结果栏显示原样内容（OCR全文/二维码原文），便于排查提取是否正确
             binding.resultTV.setText(rawText == null ? "（无原始内容）" : rawText.trim());
+            // 摄像头扫描的识别图（带检测框）显示到主界面识别图栏目
+            String boxImgPath = data.getStringExtra("boxImgPath");
+            if (boxImgPath != null) {
+                Glide.with(this).load(new java.io.File(boxImgPath))
+                        .apply(glideOptions).into(binding.imageView);
+            }
             return;
         }
         if (requestCode == REQUEST_SELECT_IMAGE && resultCode == Activity.RESULT_OK

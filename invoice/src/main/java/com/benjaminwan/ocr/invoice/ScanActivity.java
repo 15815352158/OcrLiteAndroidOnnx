@@ -14,6 +14,7 @@ import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
+import android.util.Log;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -228,8 +229,8 @@ public class ScanActivity extends AppCompatActivity {
         }
         binding.resultTV.setText(sb.toString());
         binding.statusTV.setText(String.format("识别时间:%d ms", (int) result.getDetectTime()));
-        binding.boxImageView.setVisibility(android.view.View.VISIBLE);
-        Glide.with(this).load(result.getBoxImg()).apply(glideOptions).into(binding.boxImageView);
+        // 识别图不在扫描页显示，仅回传主界面上方的识别图栏目
+        binding.boxImageView.setVisibility(android.view.View.GONE);
         vibration();
 
         Intent data = new Intent();
@@ -238,6 +239,16 @@ public class ScanActivity extends AppCompatActivity {
                 InvoiceNumberUtils.concatCode(result, numbers.get(0)));
         // OCR 原样全文回传主界面"扫描结果"栏，便于排查问题
         data.putExtra("rawText", result.getStrRes());
+        // 识别图（带检测框）存缓存文件后回传路径，Bitmap 过大不能直接走 Intent
+        try {
+            java.io.File boxFile = new java.io.File(getCacheDir(), "scan_box.jpg");
+            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(boxFile)) {
+                result.getBoxImg().compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, fos);
+            }
+            data.putExtra("boxImgPath", boxFile.getAbsolutePath());
+        } catch (Throwable t) {
+            Log.w("ScanActivity", "save box img failed: " + t.getMessage());
+        }
         setResult(Activity.RESULT_OK, data);
         // 短暂停留展示结果后自动退出扫描页，返回主界面
         mainHandler.postDelayed(this::finish, 1200);
