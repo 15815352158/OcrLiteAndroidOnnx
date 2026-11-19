@@ -121,14 +121,13 @@
             android:tooltipText="二维码扫描" />
     </LinearLayout>
 
-    <!-- 提交按钮：单独一行、加宽居中，方便高频点击 -->
+    <!-- 提交按钮：单独一行与上方三按钮两端对齐；禁用时灰色显示 -->
     <ImageButton
         android:id="@+id/submitBtn"
-        android:layout_width="240dp"
+        android:layout_width="match_parent"
         android:layout_height="56dp"
-        android:layout_gravity="center_horizontal"
         android:layout_marginTop="8dp"
-        android:background="?attr/colorPrimary"
+        android:background="@drawable/bg_submit_btn"
         android:contentDescription="提交发票号码"
         android:scaleType="fitCenter"
         android:padding="14dp"
