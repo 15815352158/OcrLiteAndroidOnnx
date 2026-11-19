@@ -7,19 +7,28 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.InputType;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
 import android.text.style.ForegroundColorSpan;
+import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.widget.EditText;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.benjaminwan.ocr.invoice.app.App;
 import com.benjaminwan.ocr.invoice.databinding.ActivityMainBinding;
+import com.benjaminwan.ocr.invoice.utils.AppConfig;
 import com.benjaminwan.ocr.invoice.utils.BitmapUtils;
+import com.benjaminwan.ocr.invoice.utils.InvoiceApi;
 import com.benjaminwan.ocr.invoice.utils.InvoiceNumberUtils;
+import com.benjaminwan.ocr.invoice.utils.NoCopyActionModeCallback;
 import com.benjaminwan.ocrlibrary.OcrEngine;
 import com.benjaminwan.ocrlibrary.OcrResult;
 import com.bumptech.glide.Glide;
@@ -38,9 +47,21 @@ import java.util.concurrent.Executors;
  */
 public class MainActivity extends AppCompatActivity {
 
+    private static final String TAG = "MainActivity";
+
     private static final int REQUEST_SELECT_IMAGE = 100;
     private static final int REQUEST_SCAN = 101;
     private static final int REQUEST_QR_SCAN = 102;
+
+    /** 设置菜单项 Id */
+    private static final int MENU_INTERNAL_IP = 201;
+    private static final int MENU_EXTERNAL_IP = 202;
+    private static final int MENU_PORT = 203;
+    private static final int MENU_TOKEN = 204;
+    private static final int MENU_RESTORE_DEFAULT = 205;
+    private static final int MENU_AUTO_SUBMIT = 206;
+    private static final int MENU_CONTINUOUS_SCAN = 208;
+    private static final int MENU_ABOUT = 207;
 
     /** 发票号码分组着色：每 4 个字符一组，按 红、蓝、绿、黄、黑 循环 */
     private static final int[] GROUP_COLORS = {
@@ -54,6 +75,16 @@ public class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
     private OcrEngine ocrEngine;
     private Bitmap selectedImg;
+    private AppConfig conf;
+
+    /** 当前发票号码纯文本（提交用，不含着色） */
+    private String currentNumber = "";
+    /** 最近一次提交成功/重复的号码，未改成别的号码前禁止再次提交 */
+    private String lastSubmittedNumber = "";
+    /** 识别进行中临时禁用提交按钮 */
+    private boolean recognizing = false;
+    /** 最近一次进入的扫描方式（REQUEST_SCAN/REQUEST_QR_SCAN），连续扫描提交成功后自动重进 */
+    private int lastScanRequest = 0;
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -70,12 +101,19 @@ public class MainActivity extends AppCompatActivity {
 
         ocrEngine = App.getEngine(this);
         ocrEngine.setDoAngle(true); // 相册照片方向不定，启用文字方向检测
+        conf = AppConfig.get(this);
 
         binding.selectBtn.setOnClickListener(v -> openSelector());
-        binding.scanBtn.setOnClickListener(v ->
-                startActivityForResult(new Intent(this, ScanActivity.class), REQUEST_SCAN));
-        binding.qrScanBtn.setOnClickListener(v ->
-                startActivityForResult(new Intent(this, QrScanActivity.class), REQUEST_QR_SCAN));
+        binding.scanBtn.setOnClickListener(v -> {
+            lastScanRequest = REQUEST_SCAN;
+            startActivityForResult(new Intent(this, ScanActivity.class), REQUEST_SCAN);
+        });
+        binding.qrScanBtn.setOnClickListener(v -> {
+            lastScanRequest = REQUEST_QR_SCAN;
+            startActivityForResult(new Intent(this, QrScanActivity.class), REQUEST_QR_SCAN);
+        });
+        binding.submitBtn.setOnClickListener(v -> submitInvoice());
+        binding.submitBtn.setEnabled(false);
 
         // 原始内容折叠区：默认收起，点击标题展开/收起，收起时下方组件自动上移
         binding.resultHeaderTV.setOnClickListener(v -> {
@@ -102,7 +140,7 @@ public class MainActivity extends AppCompatActivity {
                 && resultCode == Activity.RESULT_OK && data != null) {
             String number = data.getStringExtra("invoiceNumber");
             String rawText = data.getStringExtra("rawText");
-            binding.invoiceNumberET.setText(styleInvoiceNumber(number));
+            updateInvoiceNumber(number);
             // 扫描结果栏显示原样内容（OCR全文/二维码原文），便于排查提取是否正确
             binding.resultTV.setText(rawText == null ? "（无原始内容）" : rawText.trim());
             // 摄像头扫描的识别图（带检测框）显示到主界面识别图栏目
@@ -150,7 +188,7 @@ public class MainActivity extends AppCompatActivity {
                     mainHandler.post(() -> {
                         setButtonsEnabled(true);
                         binding.timeTV.setText("二维码识别（相册图片）");
-                        binding.invoiceNumberET.setText(styleInvoiceNumber(qrNumber));
+                        updateInvoiceNumber(qrNumber);
                         // 扫描结果栏显示二维码原始内容，便于排查
                         binding.resultTV.setText(qrText.trim());
                     });
@@ -189,6 +227,8 @@ public class MainActivity extends AppCompatActivity {
         binding.selectBtn.setEnabled(enabled);
         binding.scanBtn.setEnabled(enabled);
         binding.qrScanBtn.setEnabled(enabled);
+        recognizing = !enabled;
+        refreshSubmitEnabled();
     }
 
     /** 用 ZXing 解码静态图片中的二维码，解不到返回 null */
@@ -219,9 +259,8 @@ public class MainActivity extends AppCompatActivity {
 
         // 第一个合法号码（20位优先）填入发票号码文本框，分组着色便于人工核对；
         // 8位号码时自动拼接全文中的12/10位发票代码，长度与二维码扫描一致
-        binding.invoiceNumberET.setText(
-                styleInvoiceNumber(InvoiceNumberUtils.concatCode(
-                        ocrResult, numbers.isEmpty() ? "" : numbers.get(0))));
+        updateInvoiceNumber(InvoiceNumberUtils.concatCode(
+                ocrResult, numbers.isEmpty() ? "" : numbers.get(0)));
 
         return ocrResult.getStrRes().trim();
     }
@@ -241,6 +280,230 @@ public class MainActivity extends AppCompatActivity {
             sb.setSpan(new ForegroundColorSpan(color), i, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
         return sb;
+    }
+
+    /**
+     * 三种识别方式得到号码的统一入口：着色显示、刷新提交按钮使能、按需自动提交。
+     */
+    private void updateInvoiceNumber(String number) {
+        currentNumber = number == null ? "" : number;
+        binding.invoiceNumberET.setText(styleInvoiceNumber(currentNumber));
+        refreshSubmitEnabled();
+        if (conf.isAutoSubmit() && !currentNumber.isEmpty()
+                && !currentNumber.equals(lastSubmittedNumber)) {
+            Log.i(TAG, "自动提交已开启，识别到号码，自动提交: " + currentNumber);
+            submitInvoice();
+        }
+    }
+
+    /** 提交按钮使能规则：号码非空且与最近一次已提交号码不同（识别进行中临时禁用） */
+    private void refreshSubmitEnabled() {
+        binding.submitBtn.setEnabled(!recognizing && !currentNumber.isEmpty()
+                && !currentNumber.equals(lastSubmittedNumber));
+    }
+
+    /** 提交发票号码到后端做防重检测（点击按钮或自动提交触发） */
+    private void submitInvoice() {
+        final String number = currentNumber;
+        if (number.isEmpty() || number.equals(lastSubmittedNumber)) {
+            return;
+        }
+        binding.submitBtn.setEnabled(false);
+        Log.i(TAG, "开始提交发票号码: " + number);
+        executor.execute(() -> {
+            final InvoiceApi.Result result = InvoiceApi.submit(conf, number);
+            Log.i(TAG, "提交结果: kind=" + result.kind + " message=" + result.message);
+            mainHandler.post(() -> {
+                if (result.kind == InvoiceApi.KIND_SUCCESS) {
+                    // 后端无报错：Toast 提示稍后自动消失
+                    lastSubmittedNumber = number;
+                    Toast.makeText(this, "发票OK", Toast.LENGTH_SHORT).show();
+                    // 连续扫描：提交成功后自动重新进入前一次的扫描页继续操作
+                    if (conf.isContinuousScan()
+                            && (lastScanRequest == REQUEST_SCAN || lastScanRequest == REQUEST_QR_SCAN)) {
+                        Log.i(TAG, "连续扫描已开启，重新进入扫描页: " + lastScanRequest);
+                        openScanActivity(lastScanRequest);
+                    }
+                } else if (result.kind == InvoiceApi.KIND_DUPLICATE) {
+                    // 409 重复：对话框展示冲突信息，视为已提交，改号码前保持禁用
+                    lastSubmittedNumber = number;
+                    showErrorDialog(result.message);
+                } else {
+                    // 其他失败：对话框展示错误信息，手动确认后恢复使能可重试
+                    showErrorDialog(result.message);
+                }
+                refreshSubmitEnabled();
+            });
+        });
+    }
+
+    /** 按请求码进入对应扫描页（连续扫描复用） */
+    private void openScanActivity(int requestCode) {
+        Class<?> cls = requestCode == REQUEST_QR_SCAN ? QrScanActivity.class : ScanActivity.class;
+        startActivityForResult(new Intent(this, cls), requestCode);
+    }
+
+    /** 失败对话框：显示服务器错误信息，必须手动点击"确定"关闭 */
+    private void showErrorDialog(String message) {
+        new AlertDialog.Builder(this)
+                .setTitle("提交失败")
+                .setMessage(message)
+                .setCancelable(false)
+                .setPositiveButton("确定", null)
+                .show();
+    }
+
+    // ---------------- 设置菜单 ----------------
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        android.view.SubMenu sub = menu.addSubMenu("设置");
+        sub.add(0, MENU_INTERNAL_IP, 0, "配置内网地址");
+        sub.add(0, MENU_EXTERNAL_IP, 0, "配置外网地址");
+        sub.add(0, MENU_PORT, 0, "配置端口");
+        sub.add(0, MENU_TOKEN, 0, "配置Token");
+        sub.add(0, MENU_RESTORE_DEFAULT, 0, "恢复默认值");
+        MenuItem auto = sub.add(0, MENU_AUTO_SUBMIT, 0, "是否自动提交");
+        auto.setCheckable(true);
+        auto.setChecked(conf.isAutoSubmit());
+        MenuItem continuous = sub.add(0, MENU_CONTINUOUS_SCAN, 0, "是否连续扫描");
+        continuous.setCheckable(true);
+        continuous.setChecked(conf.isContinuousScan());
+        sub.add(0, MENU_ABOUT, 0, "关于");
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        int id = item.getItemId();
+        if (id == MENU_INTERNAL_IP) {
+            showEditDialog("配置内网地址", conf.getInternalIp(),
+                    InputType.TYPE_CLASS_TEXT, true, value -> {
+                        conf.setInternalIp(value);
+                        Toast.makeText(this, "内网地址已保存: " + value, Toast.LENGTH_SHORT).show();
+                    });
+            return true;
+        }
+        if (id == MENU_EXTERNAL_IP) {
+            showEditDialog("配置外网地址", conf.getExternalIp(),
+                    InputType.TYPE_CLASS_TEXT, true, value -> {
+                        conf.setExternalIp(value);
+                        Toast.makeText(this, "外网地址已保存: " + value, Toast.LENGTH_SHORT).show();
+                    });
+            return true;
+        }
+        if (id == MENU_PORT) {
+            showEditDialog("配置端口", String.valueOf(conf.getPort()),
+                    InputType.TYPE_CLASS_NUMBER, true, value -> {
+                        conf.setPort(Integer.parseInt(value));
+                        Toast.makeText(this, "端口已保存: " + value, Toast.LENGTH_SHORT).show();
+                    });
+            return true;
+        }
+        if (id == MENU_TOKEN) {
+            // 不回显当前 Token，输入框为密码样式
+            showEditDialog("配置Token", null,
+                    InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD,
+                    false, value -> {
+                        conf.setToken(value);
+                        Toast.makeText(this, "Token已保存", Toast.LENGTH_SHORT).show();
+                    });
+            return true;
+        }
+        if (id == MENU_RESTORE_DEFAULT) {
+            new AlertDialog.Builder(this)
+                    .setTitle("恢复默认值")
+                    .setMessage("将内网地址、外网地址、端口、Token 恢复为默认值？")
+                    .setPositiveButton("恢复", (d, w) -> {
+                        conf.restoreDefaults();
+                        Toast.makeText(this, "已恢复默认值", Toast.LENGTH_SHORT).show();
+                    })
+                    .setNegativeButton("取消", null)
+                    .show();
+            return true;
+        }
+        if (id == MENU_AUTO_SUBMIT) {
+            boolean enable = !item.isChecked();
+            item.setChecked(enable);
+            conf.setAutoSubmit(enable);
+            Toast.makeText(this, enable ? "自动提交已开启" : "自动提交已关闭",
+                    Toast.LENGTH_SHORT).show();
+            return true;
+        }
+        if (id == MENU_CONTINUOUS_SCAN) {
+            boolean enable = !item.isChecked();
+            item.setChecked(enable);
+            conf.setContinuousScan(enable);
+            Toast.makeText(this, enable ? "连续扫描已开启" : "连续扫描已关闭",
+                    Toast.LENGTH_SHORT).show();
+            return true;
+        }
+        if (id == MENU_ABOUT) {
+            new AlertDialog.Builder(this)
+                    .setTitle("关于")
+                    .setMessage("软件名称: 发票防重检测app\n版本: V1.0\n开发者: HiSon\nEmail: zhoums@gsdtech.com")
+                    .setPositiveButton("确定", null)
+                    .show();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    /** 设置项输入对话框回调 */
+    private interface OnSaveValue {
+        void onSave(String value);
+    }
+
+    /**
+     * 通用输入对话框。
+     *
+     * @param current  预填的当前值（password 传 null 不回显）
+     * @param prefill  是否预填当前值
+     * @param onSave   校验通过后的保存回调（子线程无关，主线程调用）
+     */
+    private void showEditDialog(String title, String current, int inputType,
+                                boolean prefill, OnSaveValue onSave) {
+        EditText input = new EditText(this);
+        input.setInputType(inputType);
+        if (prefill && current != null) {
+            input.setText(current);
+            input.setSelection(current.length());
+        } else {
+            input.setHint("输入新值（当前值不显示）");
+        }
+        // Token 密码框：允许粘贴，但屏蔽复制/剪切/分享，且密码样式始终掩码不回显明文
+        if ((inputType & InputType.TYPE_TEXT_VARIATION_PASSWORD) != 0) {
+            input.setCustomSelectionActionModeCallback(new NoCopyActionModeCallback());
+        }
+        int pad = (int) (16 * getResources().getDisplayMetrics().density);
+        android.widget.FrameLayout wrapper = new android.widget.FrameLayout(this);
+        wrapper.setPadding(pad, pad / 2, pad, 0);
+        wrapper.addView(input);
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setView(wrapper)
+                .setPositiveButton("保存", (d, w) -> {
+                    String value = input.getText().toString().trim();
+                    if (value.isEmpty()) {
+                        Toast.makeText(this, "内容不能为空", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    if (inputType == InputType.TYPE_CLASS_NUMBER) {
+                        try {
+                            int p = Integer.parseInt(value);
+                            if (p <= 0 || p > 65535) {
+                                Toast.makeText(this, "端口范围 1-65535", Toast.LENGTH_SHORT).show();
+                                return;
+                            }
+                        } catch (NumberFormatException e) {
+                            Toast.makeText(this, "端口必须为数字", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                    }
+                    onSave.onSave(value);
+                })
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     @Override

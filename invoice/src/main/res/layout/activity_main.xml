@@ -121,6 +121,20 @@
             android:tooltipText="二维码扫描" />
     </LinearLayout>
 
+    <!-- 提交按钮：单独一行、加宽居中，方便高频点击 -->
+    <ImageButton
+        android:id="@+id/submitBtn"
+        android:layout_width="240dp"
+        android:layout_height="56dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="8dp"
+        android:background="?attr/colorPrimary"
+        android:contentDescription="提交发票号码"
+        android:scaleType="fitCenter"
+        android:padding="14dp"
+        android:src="@drawable/ic_submit"
+        android:tooltipText="提交发票号码" />
+
     <!-- 底部弹性占位：折叠原始内容时吸收多余空间，使上方组件保持上移 -->
     <View
         android:layout_width="match_parent"
