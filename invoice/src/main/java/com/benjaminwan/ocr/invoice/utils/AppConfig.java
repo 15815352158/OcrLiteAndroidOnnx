@@ -23,7 +23,7 @@ public class AppConfig {
     private static final String CONF_FILE = "conf.json";
 
     public static final String DEFAULT_INTERNAL_IP = "10.129.0.239";
-    public static final String DEFAULT_EXTERNAL_IP = "122.91.119.142";
+    public static final String DEFAULT_EXTERNAL_IP = "112.91.119.142";
     public static final int DEFAULT_PORT = 12888;
     public static final String DEFAULT_TOKEN =
             "f931a466c79e818794144b2d57e153ec12dce5cfa5b26691231e75159172de1f";
