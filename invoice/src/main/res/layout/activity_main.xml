@@ -7,12 +7,38 @@
     android:padding="8dp"
     tools:context=".MainActivity">
 
-    <ImageView
-        android:id="@+id/imageView"
+    <!-- 图片识别区：默认显示占位文字，二维码扫描时显示二维码图示，识别后显示识别图 -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="220dp"
-        android:adjustViewBounds="true"
-        android:scaleType="fitCenter" />
+        android:background="#F5F5F5">
+
+        <ImageView
+            android:id="@+id/imageView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:adjustViewBounds="true"
+            android:scaleType="fitCenter" />
+
+        <TextView
+            android:id="@+id/imageHintTV"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="图片识别区"
+            android:textColor="#999999"
+            android:textSize="18sp" />
+
+        <ImageView
+            android:id="@+id/qrHintIV"
+            android:layout_width="96dp"
+            android:layout_height="96dp"
+            android:layout_gravity="center"
+            android:contentDescription="二维码图示"
+            android:src="@drawable/ic_qr_code"
+            android:tint="#666666"
+            android:visibility="gone" />
+    </FrameLayout>
 
     <TextView
         android:id="@+id/timeTV"

@@ -103,13 +103,18 @@ public class MainActivity extends AppCompatActivity {
         ocrEngine.setDoAngle(true); // 相册照片方向不定，启用文字方向检测
         conf = AppConfig.get(this);
 
-        binding.selectBtn.setOnClickListener(v -> openSelector());
+        binding.selectBtn.setOnClickListener(v -> {
+            showDefaultHint();
+            openSelector();
+        });
         binding.scanBtn.setOnClickListener(v -> {
             lastScanRequest = REQUEST_SCAN;
+            showDefaultHint();
             startActivityForResult(new Intent(this, ScanActivity.class), REQUEST_SCAN);
         });
         binding.qrScanBtn.setOnClickListener(v -> {
             lastScanRequest = REQUEST_QR_SCAN;
+            showQrHint();
             startActivityForResult(new Intent(this, QrScanActivity.class), REQUEST_QR_SCAN);
         });
         binding.submitBtn.setOnClickListener(v -> submitInvoice());
@@ -146,6 +151,7 @@ public class MainActivity extends AppCompatActivity {
             // 摄像头扫描的识别图（带检测框）显示到主界面识别图栏目
             String boxImgPath = data.getStringExtra("boxImgPath");
             if (boxImgPath != null) {
+                hideHints();
                 Glide.with(this).load(new java.io.File(boxImgPath))
                         .apply(glideOptions).into(binding.imageView);
             }
@@ -154,6 +160,7 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == REQUEST_SELECT_IMAGE && resultCode == Activity.RESULT_OK
                 && data != null && data.getData() != null) {
             Uri imgUri = data.getData();
+            hideHints();
             Glide.with(this).load(imgUri).apply(glideOptions).into(binding.imageView);
             try {
                 selectedImg = BitmapUtils.decodeUri(this, imgUri);
@@ -214,6 +221,7 @@ public class MainActivity extends AppCompatActivity {
                     return;
                 }
                 binding.timeTV.setText(String.format("识别时间:%d ms", (int) ocrResult.getDetectTime()));
+                hideHints();
                 Glide.with(MainActivity.this)
                         .load(ocrResult.getBoxImg())
                         .apply(glideOptions)
@@ -335,6 +343,26 @@ public class MainActivity extends AppCompatActivity {
                 refreshSubmitEnabled();
             });
         });
+    }
+
+    /** 识别区恢复默认占位文字"图片识别区" */
+    private void showDefaultHint() {
+        binding.imageView.setImageDrawable(null);
+        binding.qrHintIV.setVisibility(android.view.View.GONE);
+        binding.imageHintTV.setVisibility(android.view.View.VISIBLE);
+    }
+
+    /** 识别区显示二维码图示（点击二维码扫描时） */
+    private void showQrHint() {
+        binding.imageView.setImageDrawable(null);
+        binding.imageHintTV.setVisibility(android.view.View.GONE);
+        binding.qrHintIV.setVisibility(android.view.View.VISIBLE);
+    }
+
+    /** 隐藏占位提示，让位给识别图 */
+    private void hideHints() {
+        binding.imageHintTV.setVisibility(android.view.View.GONE);
+        binding.qrHintIV.setVisibility(android.view.View.GONE);
     }
 
     /** 按请求码进入对应扫描页（连续扫描复用） */
