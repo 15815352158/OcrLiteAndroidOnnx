@@ -11,5 +11,11 @@
         <item name="colorOnSecondary">@color/black</item>
         <!-- Status bar color. -->
         <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
+        <!-- 溢出菜单按钮改为齿轮图标 -->
+        <item name="actionOverflowButtonStyle">@style/OverflowGear</item>
+    </style>
+
+    <style name="OverflowGear" parent="Widget.AppCompat.ActionButton.Overflow">
+        <item name="srcCompat">@drawable/ic_settings</item>
     </style>
 </resources>

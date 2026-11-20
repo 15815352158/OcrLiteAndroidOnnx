@@ -46,7 +46,7 @@ import java.util.concurrent.Executors;
  * 1. 相册选图识别：OCR 后按规则提取合法发票号码（8 位或 20 位数字，仅扫描 <=20 字符的小矩形框）；
  * 2. 摄像头扫描：跳转 ScanActivity 连续扫描，校验通过才出结果。
  */
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements android.text.TextWatcher {
 
     private static final String TAG = "MainActivity";
 
@@ -88,6 +88,8 @@ public class MainActivity extends AppCompatActivity {
     private int lastScanRequest = 0;
     /** 提交中旋转进度对话框，提交完毕自动关闭 */
     private AlertDialog submitProgressDialog;
+    /** 程序回填发票号码时屏蔽 TextWatcher，避免与手动编辑互相触发 */
+    private boolean updatingText = false;
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -122,6 +124,20 @@ public class MainActivity extends AppCompatActivity {
         });
         binding.submitBtn.setOnClickListener(v -> submitInvoice());
         binding.submitBtn.setEnabled(false);
+        // 手动编辑发票号码：数字键盘输入，改动后刷新提交使能（不触发自动提交）
+        binding.invoiceNumberET.addTextChangedListener(this);
+
+        // 溢出菜单三个点图标改为齿轮：主题样式在部分机型不生效，直接在内部 Toolbar 上设置
+        binding.getRoot().post(() -> {
+            androidx.appcompat.widget.Toolbar bar =
+                    findViewById(androidx.appcompat.R.id.action_bar);
+            if (bar != null) {
+                bar.setOverflowIcon(androidx.core.content.ContextCompat
+                        .getDrawable(this, R.drawable.ic_settings));
+            } else {
+                Log.w(TAG, "未找到 action_bar Toolbar，溢出图标未替换");
+            }
+        });
 
         // 原始内容折叠区：默认收起，点击标题展开/收起，收起时下方组件自动上移
         binding.resultHeaderTV.setOnClickListener(v -> {
@@ -298,7 +314,9 @@ public class MainActivity extends AppCompatActivity {
      */
     private void updateInvoiceNumber(String number) {
         currentNumber = number == null ? "" : number;
+        updatingText = true;
         binding.invoiceNumberET.setText(styleInvoiceNumber(currentNumber));
+        updatingText = false;
         refreshSubmitEnabled();
         if (conf.isAutoSubmit() && !currentNumber.isEmpty()
                 && !currentNumber.equals(lastSubmittedNumber)) {
@@ -401,6 +419,35 @@ public class MainActivity extends AppCompatActivity {
                 .putExtra("ignoreNumber", lastSubmittedNumber), requestCode);
     }
 
+    // ---------------- 发票号码手动编辑（TextWatcher） ----------------
+
+    @Override
+    public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+    }
+
+    @Override
+    public void onTextChanged(CharSequence s, int start, int before, int count) {
+    }
+
+    @Override
+    public void afterTextChanged(android.text.Editable s) {
+        if (updatingText) {
+            return;
+        }
+        String raw = s.toString().trim();
+        if (raw.equals(currentNumber)) {
+            return;
+        }
+        // 手动编辑：只刷新号码与提交使能，不触发自动提交（自动提交仅识别入口触发）
+        currentNumber = raw;
+        refreshSubmitEnabled();
+        // 重新套用分组着色，光标置于末尾
+        updatingText = true;
+        binding.invoiceNumberET.setText(styleInvoiceNumber(currentNumber));
+        binding.invoiceNumberET.setSelection(binding.invoiceNumberET.getText().length());
+        updatingText = false;
+    }
+
     /** 失败对话框：显示服务器错误信息，必须手动点击"确定"关闭；
      *  连续扫描开启时，确认后自动重新进入前一次的扫描页继续扫描 */
     private void showErrorDialog(String message) {
@@ -422,19 +469,19 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        android.view.SubMenu sub = menu.addSubMenu("设置");
-        sub.add(0, MENU_INTERNAL_IP, 0, "配置内网地址");
-        sub.add(0, MENU_EXTERNAL_IP, 0, "配置外网地址");
-        sub.add(0, MENU_PORT, 0, "配置端口");
-        sub.add(0, MENU_TOKEN, 0, "配置Token");
-        sub.add(0, MENU_RESTORE_DEFAULT, 0, "恢复默认值");
-        MenuItem auto = sub.add(0, MENU_AUTO_SUBMIT, 0, "是否自动提交");
+        // 设置项直接作为一级菜单显示在溢出弹层中（齿轮按钮）
+        menu.add(0, MENU_INTERNAL_IP, 0, "配置内网地址");
+        menu.add(0, MENU_EXTERNAL_IP, 0, "配置外网地址");
+        menu.add(0, MENU_PORT, 0, "配置端口");
+        menu.add(0, MENU_TOKEN, 0, "配置Token");
+        menu.add(0, MENU_RESTORE_DEFAULT, 0, "恢复默认值");
+        MenuItem auto = menu.add(0, MENU_AUTO_SUBMIT, 0, "是否自动提交");
         auto.setCheckable(true);
         auto.setChecked(conf.isAutoSubmit());
-        MenuItem continuous = sub.add(0, MENU_CONTINUOUS_SCAN, 0, "是否连续扫描");
+        MenuItem continuous = menu.add(0, MENU_CONTINUOUS_SCAN, 0, "是否连续扫描");
         continuous.setCheckable(true);
         continuous.setChecked(conf.isContinuousScan());
-        sub.add(0, MENU_ABOUT, 0, "关于");
+        menu.add(0, MENU_ABOUT, 0, "关于");
         return true;
     }
 
@@ -443,7 +490,7 @@ public class MainActivity extends AppCompatActivity {
         int id = item.getItemId();
         if (id == MENU_INTERNAL_IP) {
             showEditDialog("配置内网地址", conf.getInternalIp(),
-                    InputType.TYPE_CLASS_TEXT, true, value -> {
+                    InputType.TYPE_CLASS_PHONE, true, value -> {
                         conf.setInternalIp(value);
                         Toast.makeText(this, "内网地址已保存: " + value, Toast.LENGTH_SHORT).show();
                     });
@@ -451,7 +498,7 @@ public class MainActivity extends AppCompatActivity {
         }
         if (id == MENU_EXTERNAL_IP) {
             showEditDialog("配置外网地址", conf.getExternalIp(),
-                    InputType.TYPE_CLASS_TEXT, true, value -> {
+                    InputType.TYPE_CLASS_PHONE, true, value -> {
                         conf.setExternalIp(value);
                         Toast.makeText(this, "外网地址已保存: " + value, Toast.LENGTH_SHORT).show();
                     });
