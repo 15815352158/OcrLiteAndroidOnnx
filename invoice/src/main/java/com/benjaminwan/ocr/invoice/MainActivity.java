@@ -318,23 +318,23 @@ public class MainActivity extends AppCompatActivity implements android.text.Text
         binding.invoiceNumberET.setText(styleInvoiceNumber(currentNumber));
         updatingText = false;
         refreshSubmitEnabled();
-        if (conf.isAutoSubmit() && !currentNumber.isEmpty()
+        if (conf.isAutoSubmit() && currentNumber.length() > 7
                 && !currentNumber.equals(lastSubmittedNumber)) {
             Log.i(TAG, "自动提交已开启，识别到号码，自动提交: " + currentNumber);
             submitInvoice();
         }
     }
 
-    /** 提交按钮使能规则：号码非空且与最近一次已提交号码不同（识别进行中临时禁用） */
+    /** 提交按钮使能规则：号码长度大于7（至少8位）且与最近一次已提交号码不同（识别进行中临时禁用） */
     private void refreshSubmitEnabled() {
-        binding.submitBtn.setEnabled(!recognizing && !currentNumber.isEmpty()
+        binding.submitBtn.setEnabled(!recognizing && currentNumber.length() > 7
                 && !currentNumber.equals(lastSubmittedNumber));
     }
 
     /** 提交发票号码到后端做防重检测（点击按钮或自动提交触发） */
     private void submitInvoice() {
         final String number = currentNumber;
-        if (number.isEmpty() || number.equals(lastSubmittedNumber)) {
+        if (number.length() <= 7 || number.equals(lastSubmittedNumber)) {
             return;
         }
         binding.submitBtn.setEnabled(false);
