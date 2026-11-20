@@ -28,6 +28,7 @@ import com.benjaminwan.ocr.invoice.utils.AppConfig;
 import com.benjaminwan.ocr.invoice.utils.BitmapUtils;
 import com.benjaminwan.ocr.invoice.utils.InvoiceApi;
 import com.benjaminwan.ocr.invoice.utils.InvoiceNumberUtils;
+import com.benjaminwan.ocr.invoice.utils.InternalPingMonitor;
 import com.benjaminwan.ocr.invoice.utils.NoCopyActionModeCallback;
 import com.benjaminwan.ocrlibrary.OcrEngine;
 import com.benjaminwan.ocrlibrary.OcrResult;
@@ -85,6 +86,8 @@ public class MainActivity extends AppCompatActivity {
     private boolean recognizing = false;
     /** 最近一次进入的扫描方式（REQUEST_SCAN/REQUEST_QR_SCAN），连续扫描提交成功后自动重进 */
     private int lastScanRequest = 0;
+    /** 提交中旋转进度对话框，提交完毕自动关闭 */
+    private AlertDialog submitProgressDialog;
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -317,11 +320,14 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         binding.submitBtn.setEnabled(false);
-        Log.i(TAG, "开始提交发票号码: " + number);
+        Log.i(TAG, "开始提交发票号码: " + number + "，当前优先网络: "
+                + (InvoiceApi.isPreferInternal() ? "内网" : "外网"));
+        showSubmitProgress();
         executor.execute(() -> {
             final InvoiceApi.Result result = InvoiceApi.submit(conf, number);
             Log.i(TAG, "提交结果: kind=" + result.kind + " message=" + result.message);
             mainHandler.post(() -> {
+                dismissSubmitProgress();
                 if (result.kind == InvoiceApi.KIND_SUCCESS) {
                     // 后端无报错：Toast 提示稍后自动消失
                     lastSubmittedNumber = number;
@@ -343,6 +349,29 @@ public class MainActivity extends AppCompatActivity {
                 refreshSubmitEnabled();
             });
         });
+    }
+
+    /** 弹出提交中进度框（不可取消，提交结束自动关闭） */
+    private void showSubmitProgress() {
+        if (submitProgressDialog != null && submitProgressDialog.isShowing()) {
+            return;
+        }
+        android.view.View view = getLayoutInflater()
+                .inflate(R.layout.dialog_progress, null);
+        submitProgressDialog = new AlertDialog.Builder(this)
+                .setView(view)
+                .setCancelable(false)
+                .create();
+        submitProgressDialog.show();
+    }
+
+    private void dismissSubmitProgress() {
+        if (submitProgressDialog != null) {
+            if (submitProgressDialog.isShowing()) {
+                submitProgressDialog.dismiss();
+            }
+            submitProgressDialog = null;
+        }
     }
 
     /** 识别区恢复默认占位文字"图片识别区" */
@@ -537,6 +566,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        // 退出前关闭内网 ping 轮询定时
+        InternalPingMonitor.stop();
+        dismissSubmitProgress();
         executor.shutdownNow();
     }
 }

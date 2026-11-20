@@ -27,6 +27,8 @@ public class AppConfig {
     public static final int DEFAULT_PORT = 12888;
     public static final String DEFAULT_TOKEN =
             "f931a466c79e818794144b2d57e153ec12dce5cfa5b26691231e75159172de1f";
+    /** 外网优先时内网 ping 轮询间隔（分钟） */
+    public static final int DEFAULT_PING_INTERVAL_MINUTES = 15;
 
     private static final String KEY_INTERNAL_IP = "internalIp";
     private static final String KEY_EXTERNAL_IP = "externalIp";
@@ -34,6 +36,7 @@ public class AppConfig {
     private static final String KEY_TOKEN = "token";
     private static final String KEY_AUTO_SUBMIT = "autoSubmit";
     private static final String KEY_CONTINUOUS_SCAN = "continuousScan";
+    private static final String KEY_PING_INTERVAL = "pingIntervalMinutes";
 
     private static AppConfig instance;
 
@@ -45,6 +48,7 @@ public class AppConfig {
     private boolean autoSubmit = false;
     /** 连续扫描：扫描结果提交成功后自动重新进入同一扫描页 */
     private boolean continuousScan = false;
+    private int pingIntervalMinutes = DEFAULT_PING_INTERVAL_MINUTES;
 
     public static synchronized AppConfig get(Context context) {
         if (instance == null) {
@@ -78,6 +82,7 @@ public class AppConfig {
             token = json.optString(KEY_TOKEN, DEFAULT_TOKEN);
             autoSubmit = json.optBoolean(KEY_AUTO_SUBMIT, false);
             continuousScan = json.optBoolean(KEY_CONTINUOUS_SCAN, false);
+            pingIntervalMinutes = json.optInt(KEY_PING_INTERVAL, DEFAULT_PING_INTERVAL_MINUTES);
             Log.i(TAG, "已加载配置: internal=" + internalIp + " external=" + externalIp
                     + " port=" + port + " autoSubmit=" + autoSubmit
                     + " tokenLen=" + token.length());
@@ -95,6 +100,7 @@ public class AppConfig {
             json.put(KEY_TOKEN, token);
             json.put(KEY_AUTO_SUBMIT, autoSubmit);
             json.put(KEY_CONTINUOUS_SCAN, continuousScan);
+            json.put(KEY_PING_INTERVAL, pingIntervalMinutes);
             try (FileOutputStream fos = new FileOutputStream(confFile);
                  OutputStreamWriter writer = new OutputStreamWriter(fos, StandardCharsets.UTF_8)) {
                 writer.write(json.toString(2));
@@ -159,12 +165,22 @@ public class AppConfig {
         save();
     }
 
-    /** 恢复内/外网地址、端口、Token 四项为默认值（自动提交开关不变） */
+    public int getPingIntervalMinutes() {
+        return pingIntervalMinutes;
+    }
+
+    public void setPingIntervalMinutes(int minutes) {
+        pingIntervalMinutes = minutes;
+        save();
+    }
+
+    /** 恢复内/外网地址、端口、Token、轮询间隔为默认值（自动提交/连续扫描开关不变） */
     public void restoreDefaults() {
         internalIp = DEFAULT_INTERNAL_IP;
         externalIp = DEFAULT_EXTERNAL_IP;
         port = DEFAULT_PORT;
         token = DEFAULT_TOKEN;
+        pingIntervalMinutes = DEFAULT_PING_INTERVAL_MINUTES;
         save();
         Log.i(TAG, "已恢复默认配置");
     }

@@ -19,12 +19,27 @@ import javax.net.ssl.X509TrustManager;
  * 发票防重检测接口：POST https://{ip}:{port}/api/invoices
  * 鉴权使用 X-API-Token 头（API文档.md 第4节外部系统调用方式）。
  * 服务端为自签名证书，信任全部证书与主机名（等价 curl -k）。
- * 优先内网地址提交，连接异常自动回退外网地址重试。
+ * 按 preferInternal 决定优先网络（进程启动默认内网），连接层异常再试另一网络；
+ * 只有对侧实际成功才切换优先方向，两侧均失败保持原方向。
  */
 public class InvoiceApi {
 
     private static final String TAG = "InvoiceApi";
     private static final int TIMEOUT_MS = 5000;
+
+    /** 提交优先方向：true=内网优先。static 状态，进程重启即恢复内网优先 */
+    private static volatile boolean preferInternal = true;
+
+    public static boolean isPreferInternal() {
+        return preferInternal;
+    }
+
+    public static void setPreferInternal(boolean prefer) {
+        if (preferInternal != prefer) {
+            Log.i(TAG, "提交优先网络切换: " + (prefer ? "内网" : "外网"));
+        }
+        preferInternal = prefer;
+    }
 
     /** 提交结果类型（用 int 常量而非枚举，规避旧版 D8 对嵌套枚举的 dex NPE） */
     /** HTTP 200 新发票录入成功 */
@@ -78,19 +93,34 @@ public class InvoiceApi {
 
     /**
      * 提交发票号码做防重检测（同步方法，必须在子线程调用）。
-     * 先试内网，连接异常再试外网。
+     * 先按优先方向提交，连接层异常再试另一网络；
+     * 对侧成功则切换优先方向并启停内网 ping 轮询，两侧均失败方向不变。
      */
     public static Result submit(AppConfig conf, String invoiceNumber) {
         String body = "{\"invoiceNumber\":\"" + invoiceNumber + "\"}";
-        Result internal = postTo(conf.getInternalIp(), conf, invoiceNumber, body, "内网");
-        if (internal != null) {
-            return internal;
+        boolean internalFirst = preferInternal;
+        String firstLabel = internalFirst ? "内网" : "外网";
+        String secondLabel = internalFirst ? "外网" : "内网";
+        String firstIp = internalFirst ? conf.getInternalIp() : conf.getExternalIp();
+        String secondIp = internalFirst ? conf.getExternalIp() : conf.getInternalIp();
+
+        Result first = postTo(firstIp, conf, invoiceNumber, body, firstLabel);
+        if (first != null) {
+            return first;
         }
-        Log.i(TAG, "内网提交失败，回退外网 " + conf.getExternalIp());
-        Result external = postTo(conf.getExternalIp(), conf, invoiceNumber, body, "外网");
-        if (external != null) {
-            return external;
+        Log.i(TAG, firstLabel + "提交失败，回退" + secondLabel + " " + secondIp);
+        Result second = postTo(secondIp, conf, invoiceNumber, body, secondLabel);
+        if (second != null) {
+            // 对侧实际成功：切换优先方向并启停轮询
+            setPreferInternal(!internalFirst);
+            if (preferInternal) {
+                InternalPingMonitor.stop();
+            } else {
+                InternalPingMonitor.start(conf, conf.getPingIntervalMinutes());
+            }
+            return second;
         }
+        // 两侧均连接失败：保持原优先方向（外网优先时轮询继续运行）
         return new Result(KIND_ERROR, "网络错误：内网(" + conf.getInternalIp()
                 + ")与外网(" + conf.getExternalIp() + ")均连接失败");
     }
