@@ -46,6 +46,8 @@ public class QrScanActivity extends AppCompatActivity {
     private com.benjaminwan.ocr.invoice.databinding.ActivityQrScanBinding binding;
 
     private volatile boolean scanning = false;
+    /** 连续扫描自动重进时携带的已提交号码：解析结果与之相同则忽略继续扫描 */
+    private String ignoreNumber = "";
     private ImageAnalysis imageAnalysis;
     private final ExecutorService decodeExecutor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -59,6 +61,9 @@ public class QrScanActivity extends AppCompatActivity {
         setContentView(binding.getRoot());
 
         binding.scanOverlay.setSquareMode(true); // 二维码用正方形取景框
+
+        String ignore = getIntent().getStringExtra("ignoreNumber");
+        ignoreNumber = ignore == null ? "" : ignore;
 
         decodeHints.put(DecodeHintType.POSSIBLE_FORMATS,
                 Collections.singletonList(com.google.zxing.BarcodeFormat.QR_CODE));
@@ -150,6 +155,15 @@ public class QrScanActivity extends AppCompatActivity {
                 mainHandler.post(() -> {
                     if (scanning) {
                         binding.statusTV.setText("二维码中没有解析出发票号码，继续扫描…");
+                    }
+                });
+                return;
+            }
+            if (number.equals(ignoreNumber)) {
+                // 连续扫描重进后仍对着已提交的发票：忽略，继续找下一张
+                mainHandler.post(() -> {
+                    if (scanning) {
+                        binding.statusTV.setText("该号码已提交，继续扫描下一张…");
                     }
                 });
                 return;

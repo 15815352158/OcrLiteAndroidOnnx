@@ -394,19 +394,27 @@ public class MainActivity extends AppCompatActivity {
         binding.qrHintIV.setVisibility(android.view.View.GONE);
     }
 
-    /** 按请求码进入对应扫描页（连续扫描复用） */
+    /** 按请求码进入对应扫描页（连续扫描复用），携带已提交号码防止重复命中同一张发票立即弹回 */
     private void openScanActivity(int requestCode) {
         Class<?> cls = requestCode == REQUEST_QR_SCAN ? QrScanActivity.class : ScanActivity.class;
-        startActivityForResult(new Intent(this, cls), requestCode);
+        startActivityForResult(new Intent(this, cls)
+                .putExtra("ignoreNumber", lastSubmittedNumber), requestCode);
     }
 
-    /** 失败对话框：显示服务器错误信息，必须手动点击"确定"关闭 */
+    /** 失败对话框：显示服务器错误信息，必须手动点击"确定"关闭；
+     *  连续扫描开启时，确认后自动重新进入前一次的扫描页继续扫描 */
     private void showErrorDialog(String message) {
         new AlertDialog.Builder(this)
                 .setTitle("提交失败")
                 .setMessage(message)
                 .setCancelable(false)
-                .setPositiveButton("确定", null)
+                .setPositiveButton("确定", (d, w) -> {
+                    if (conf.isContinuousScan()
+                            && (lastScanRequest == REQUEST_SCAN || lastScanRequest == REQUEST_QR_SCAN)) {
+                        Log.i(TAG, "错误弹框已确认，连续扫描重新进入扫描页: " + lastScanRequest);
+                        openScanActivity(lastScanRequest);
+                    }
+                })
                 .show();
     }
 

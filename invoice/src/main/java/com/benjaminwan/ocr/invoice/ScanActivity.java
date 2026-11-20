@@ -53,6 +53,8 @@ public class ScanActivity extends AppCompatActivity {
     private OcrEngine ocrEngine;
 
     private volatile boolean detectStart = false;
+    /** 连续扫描自动重进时携带的已提交号码：识别结果与之相同则忽略继续扫描 */
+    private String ignoreNumber = "";
     private final ExecutorService ocrExecutor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
@@ -69,6 +71,9 @@ public class ScanActivity extends AppCompatActivity {
         ocrEngine = App.getEngine(this);
         // 摄像头拍摄画面基本是正的，关闭方向检测以提升每帧速度
         ocrEngine.setDoAngle(false);
+
+        String ignore = getIntent().getStringExtra("ignoreNumber");
+        ignoreNumber = ignore == null ? "" : ignore;
 
         binding.startBtn.setOnClickListener(v -> ensurePermissionThenScan());
         binding.stopBtn.setOnClickListener(v -> stopDetect("扫描已停止"));
@@ -181,6 +186,11 @@ public class ScanActivity extends AppCompatActivity {
                     if (matched == null) {
                         // 校验不满足：不出结果，继续扫描
                         binding.statusTV.setText("未识别到有效发票号码（需8位或20位数字），继续扫描…");
+                        mainHandler.postDelayed(this::scheduleNextFrame, FRAME_INTERVAL_MS);
+                    } else if (ignoreNumber.equals(
+                            InvoiceNumberUtils.concatCode(ocrResult, matched.get(0)))) {
+                        // 连续扫描重进后仍对着已提交的发票：忽略，继续找下一张
+                        binding.statusTV.setText("该号码已提交，继续扫描下一张…");
                         mainHandler.postDelayed(this::scheduleNextFrame, FRAME_INTERVAL_MS);
                     } else {
                         onMatched(ocrResult, matched);
