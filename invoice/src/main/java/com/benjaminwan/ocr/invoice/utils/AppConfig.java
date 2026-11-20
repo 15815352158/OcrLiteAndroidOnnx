@@ -174,13 +174,15 @@ public class AppConfig {
         save();
     }
 
-    /** 恢复内/外网地址、端口、Token、轮询间隔为默认值（自动提交/连续扫描开关不变） */
+    /** 恢复内/外网地址、端口、Token、轮询间隔为默认值，自动提交/连续扫描改为关闭 */
     public void restoreDefaults() {
         internalIp = DEFAULT_INTERNAL_IP;
         externalIp = DEFAULT_EXTERNAL_IP;
         port = DEFAULT_PORT;
         token = DEFAULT_TOKEN;
         pingIntervalMinutes = DEFAULT_PING_INTERVAL_MINUTES;
+        autoSubmit = false;
+        continuousScan = false;
         save();
         Log.i(TAG, "已恢复默认配置");
     }

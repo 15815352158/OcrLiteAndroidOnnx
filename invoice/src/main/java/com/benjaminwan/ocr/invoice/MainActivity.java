@@ -474,13 +474,13 @@ public class MainActivity extends AppCompatActivity implements android.text.Text
         menu.add(0, MENU_EXTERNAL_IP, 0, "配置外网地址");
         menu.add(0, MENU_PORT, 0, "配置端口");
         menu.add(0, MENU_TOKEN, 0, "配置Token");
-        menu.add(0, MENU_RESTORE_DEFAULT, 0, "恢复默认值");
         MenuItem auto = menu.add(0, MENU_AUTO_SUBMIT, 0, "是否自动提交");
         auto.setCheckable(true);
         auto.setChecked(conf.isAutoSubmit());
         MenuItem continuous = menu.add(0, MENU_CONTINUOUS_SCAN, 0, "是否连续扫描");
         continuous.setCheckable(true);
         continuous.setChecked(conf.isContinuousScan());
+        menu.add(0, MENU_RESTORE_DEFAULT, 0, "恢复默认配置");
         menu.add(0, MENU_ABOUT, 0, "关于");
         return true;
     }
@@ -524,11 +524,14 @@ public class MainActivity extends AppCompatActivity implements android.text.Text
         }
         if (id == MENU_RESTORE_DEFAULT) {
             new AlertDialog.Builder(this)
-                    .setTitle("恢复默认值")
-                    .setMessage("将内网地址、外网地址、端口、Token 恢复为默认值？")
+                    .setTitle("恢复默认配置")
+                    .setMessage("将内网地址、外网地址、端口、Token 恢复为默认值，"
+                            + "并关闭自动提交与连续扫描？")
                     .setPositiveButton("恢复", (d, w) -> {
                         conf.restoreDefaults();
-                        Toast.makeText(this, "已恢复默认值", Toast.LENGTH_SHORT).show();
+                        // 重建菜单以刷新两个开关的勾选状态
+                        invalidateOptionsMenu();
+                        Toast.makeText(this, "已恢复默认配置", Toast.LENGTH_SHORT).show();
                     })
                     .setNegativeButton("取消", null)
                     .show();
