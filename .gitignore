@@ -87,3 +87,9 @@ lint/tmp/
 .DS_Store
 ~*.xlsx
 other/~*.xlsx
+
+# Python virtualenv (backend)
+.venv/
+venv/
+__pycache__/
+*.pyc

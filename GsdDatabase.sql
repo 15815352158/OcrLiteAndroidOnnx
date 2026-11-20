@@ -59,3 +59,14 @@ UNLOCK TABLES;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 -- Dump completed on 2026-11-13 17:57:49
+CREATE TABLE `user` (
+  `Id` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `用户名` VARCHAR(50) NOT NULL COMMENT '用户名',
+  `密码` VARCHAR(10) NOT NULL COMMENT '密码',
+  `创建时间` DATETIME NOT NULL DEFAULT NOW() COMMENT '创建时间',
+  PRIMARY KEY (`Id`),
+  CONSTRAINT `chk_pwd_len` CHECK (CHAR_LENGTH(`密码`) BETWEEN 6 AND 10)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户表';
+
+insert into user(`用户名`,`密码`) values("admin","123456");
+insert into user(`用户名`,`密码`) values("gsd","123456");
